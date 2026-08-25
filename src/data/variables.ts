@@ -131,6 +131,93 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
     },
 
     // ========================================
+    // SECTION: Solving for the Missing Side
+    // ========================================
+
+    /** Length of the ladder in the prediction figure. */
+    predictLadderLength: {
+        defaultValue: 7,
+        type: 'number',
+        label: 'Ladder length',
+        description: 'Length of the ladder in the prediction figure',
+        unit: 'm',
+        min: 4,
+        max: 12,
+        step: 0.5,
+        color: '#8E90F5',
+    },
+
+    /** Angle between the ladder and the ground in the prediction figure. */
+    predictLeanAngle: {
+        defaultValue: 62,
+        type: 'number',
+        label: 'Lean angle',
+        description: 'Angle between the ladder and the ground in the prediction figure',
+        unit: '\u00B0',
+        min: 25,
+        max: 80,
+        step: 1,
+        color: '#62D0AD',
+    },
+
+    /** Where the student has placed the prediction marker, in metres. */
+    predictGuessHeight: {
+        defaultValue: 4.5,
+        type: 'number',
+        label: 'Predicted height',
+        description: 'Height on the wall where the student placed the marker',
+        unit: 'm',
+        min: 0,
+        max: 12.2,
+        step: 0.1,
+        color: '#F7B23B',
+    },
+
+    /** 1 once the student has released the marker and the working is shown. */
+    predictLocked: {
+        defaultValue: 0,
+        type: 'number',
+        label: 'Prediction locked',
+        description: 'Whether the student has committed their prediction',
+        min: 0,
+        max: 1,
+        step: 1,
+    },
+
+    /** Shared highlight channel: '' | 'height' | 'ladder' | 'angle'. */
+    predictHighlight: {
+        defaultValue: '',
+        type: 'text',
+        label: 'Prediction figure highlight',
+        description: 'Which part of the prediction figure is currently highlighted',
+        color: '#3FA98A',
+        bgColor: 'rgba(98, 208, 173, 0.22)',
+    },
+
+    /** Answer: the height a 12 m ladder at 65 degrees reaches. */
+    answer_solving_height: {
+        defaultValue: '',
+        type: 'text',
+        label: 'Height of the 12 m ladder',
+        description: 'Student answer for the height reached by a 12 m ladder leaning at 65 degrees',
+        placeholder: '???',
+        correctAnswer: ['10.9', '10.9 m', '10.9m', '10.88'],
+        color: '#8E90F5',
+    },
+
+    /** Answer: which ratio pairs the adjacent side with the hypotenuse. */
+    answer_solving_ratio: {
+        defaultValue: '',
+        type: 'select',
+        label: 'Ratio for adjacent and hypotenuse',
+        description: 'Student answer choosing the ratio when the adjacent side and hypotenuse are involved',
+        placeholder: '???',
+        correctAnswer: 'cosine',
+        options: ['sine', 'cosine', 'tangent'],
+        color: '#8E90F5',
+    },
+
+    // ========================================
     // SECTION: Naming the Sides
     // ========================================
 
