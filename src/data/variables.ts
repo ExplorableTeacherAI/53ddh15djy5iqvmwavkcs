@@ -82,8 +82,76 @@ export interface VariableDefinition {
  */
 export const variableDefinitions: Record<string, VariableDefinition> = {
     // ========================================
-    // ADD YOUR VARIABLES HERE
+    // SECTION: The Ratio That Ignores Size
     // ========================================
+
+    /** The ONE shared quantity of the linked pair: the ladder's lean angle. */
+    ladderAngle: {
+        defaultValue: 55,
+        type: 'number',
+        label: 'Lean angle',
+        description: 'Angle between the ladder and the ground, shared by the ladder view and the ratio graph',
+        unit: '\u00B0',
+        min: 10,
+        max: 85,
+        step: 1,
+        color: '#62D0AD',
+    },
+
+    /** Shared highlight channel across both views: '' | 'height' | 'angle'. */
+    ladderViewHighlight: {
+        defaultValue: '',
+        type: 'text',
+        label: 'Ladder view highlight',
+        description: 'Which quantity is highlighted across the ladder view and the ratio graph',
+        color: '#3FA98A',
+        bgColor: 'rgba(98, 208, 173, 0.22)',
+    },
+
+    /** Lowest lean angle the student has visited, for the trail on the graph. */
+    ladderTraceMin: {
+        defaultValue: 55,
+        type: 'number',
+        label: 'Trail start angle',
+        description: 'Smallest lean angle visited so far',
+        min: 10,
+        max: 85,
+        step: 1,
+    },
+
+    /** Highest lean angle the student has visited, for the trail on the graph. */
+    ladderTraceMax: {
+        defaultValue: 55,
+        type: 'number',
+        label: 'Trail end angle',
+        description: 'Largest lean angle visited so far',
+        min: 10,
+        max: 85,
+        step: 1,
+    },
+
+    /** Answer: what the height-to-length ratio actually depends on. */
+    answer_ratio_depends: {
+        defaultValue: '',
+        type: 'select',
+        label: 'What the ratio depends on',
+        description: 'Student answer: the ratio is fixed by the lean angle alone',
+        placeholder: '???',
+        correctAnswer: 'the lean angle',
+        options: ['the lean angle', 'the ladder length', 'the wall height'],
+        color: '#8E90F5',
+    },
+
+    /** Answer: half-length ladder at the same angle reaches half the height. */
+    answer_ratio_half_ladder: {
+        defaultValue: '',
+        type: 'text',
+        label: 'Height of the 5 m ladder',
+        description: 'Student answer for the shorter ladder at the same lean angle',
+        placeholder: '???',
+        correctAnswer: ['3.2', '3.2 m', '3.2m'],
+        color: '#8E90F5',
+    },
 
     // Uncomment and modify these examples for your lesson:
 
