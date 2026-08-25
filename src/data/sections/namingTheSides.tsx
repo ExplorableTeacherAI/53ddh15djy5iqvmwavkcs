@@ -25,20 +25,20 @@ import {
 
 const VIEW_WIDTH = 560;
 const VIEW_HEIGHT = 330;
-const BOUNDS = { minX: 48, maxX: 512, minY: 62, maxY: 292 };
+const BOUNDS = { minX: 48, maxX: 512, minY: 58, maxY: 288 };
 
 const INK = "#334155";
 const INK_STRUCTURE = "#64748B";
 const INK_QUIET = "#CBD5E1";
 const ACCENT = "#62D0AD";
-const GUESS = "#F7B23B";
 
 const EASE_150 = { transition: "opacity 150ms ease, stroke-width 150ms ease" } as const;
 
-const SNAP_DEGREES = 6;
+/** How square is square enough before the foot is pulled onto the exact spot. */
+const SNAP_DEGREES = 3.5;
+const START_FOOT = 0.72;
 
 type Corner = "A" | "B" | "C";
-type Side = "AB" | "BC" | "CA";
 
 interface TriangleState extends Record<string, number> {
     ax: number;
@@ -49,12 +49,9 @@ interface TriangleState extends Record<string, number> {
     cy: number;
 }
 
-const DEFAULT_TRIANGLE: TriangleState = { ax: 110, ay: 110, bx: 400, by: 80, cx: 419.6, cy: 269 };
+const DEFAULT_TRIANGLE: TriangleState = { ax: 110, ay: 255, bx: 470, by: 215, cx: 250, cy: 80 };
 
 const CORNERS: Corner[] = ["A", "B", "C"];
-/** The side facing each corner — the hypotenuse when that corner is the right angle. */
-const OPPOSITE_SIDE: Record<Corner, Side> = { A: "BC", B: "CA", C: "AB" };
-const SIDE_ENDS: Record<Side, [Corner, Corner]> = { AB: ["A", "B"], BC: ["B", "C"], CA: ["C", "A"] };
 
 const pointsOf = (triangle: TriangleState): Record<Corner, Vec2> => ({
     A: { x: triangle.ax, y: triangle.ay },
@@ -62,79 +59,24 @@ const pointsOf = (triangle: TriangleState): Record<Corner, Vec2> => ({
     C: { x: triangle.cx, y: triangle.cy },
 });
 
-const angleAt = (corner: Vec2, first: Vec2, second: Vec2) => {
-    const u = vec2.sub(first, corner);
-    const v = vec2.sub(second, corner);
-    const lengths = vec2.len(u) * vec2.len(v);
-    if (lengths < 1) return 0;
-    return (Math.acos(clamp(vec2.dot(u, v) / lengths, -1, 1)) * 180) / Math.PI;
-};
-
-const otherCorners = (corner: Corner): [Corner, Corner] =>
-    CORNERS.filter((candidate) => candidate !== corner) as [Corner, Corner];
-
-const cornerAngles = (triangle: TriangleState): Record<Corner, number> => {
-    const points = pointsOf(triangle);
-    return CORNERS.reduce((result, corner) => {
-        const [first, second] = otherCorners(corner);
-        result[corner] = angleAt(points[corner], points[first], points[second]);
-        return result;
-    }, {} as Record<Corner, number>);
-};
-
-/** The right-angle corner, or null when this triangle simply has not got one. */
-const rightAngleCorner = (triangle: TriangleState): Corner | null => {
-    const angles = cornerAngles(triangle);
-    return CORNERS.find((corner) => Math.abs(angles[corner] - 90) < 0.6) ?? null;
-};
+const baseCorners = (apex: Corner): [Corner, Corner] =>
+    CORNERS.filter((corner) => corner !== apex) as [Corner, Corner];
 
 /**
- * Free dragging never lands exactly on 90°, so a corner that comes within a few
- * degrees is pulled onto the exact right angle: onto the Thales circle when the
- * near-square corner is the one being dragged, onto the perpendicular ray when
- * it is one of the other two.
+ * The foot may run past the ends of the base, but never past the edge of the
+ * drawing: this works out how far along the base it is still allowed to go.
  */
-const snapToRightAngle = (triangle: TriangleState, dragged: Corner): TriangleState => {
-    const points = pointsOf(triangle);
-    const angles = cornerAngles(triangle);
-    const candidate = CORNERS
-        .filter((corner) => Math.abs(angles[corner] - 90) < SNAP_DEGREES)
-        .sort((left, right) => Math.abs(angles[left] - 90) - Math.abs(angles[right] - 90))[0];
-    if (!candidate) return triangle;
-
-    let snapped: Vec2;
-    if (candidate === dragged) {
-        const [first, second] = otherCorners(dragged);
-        const middle = vec2.scale(vec2.add(points[first], points[second]), 0.5);
-        const radius = vec2.dist(points[first], points[second]) / 2;
-        const direction = vec2.sub(points[dragged], middle);
-        if (vec2.len(direction) < 1) return triangle;
-        snapped = vec2.add(middle, vec2.scale(vec2.norm(direction), radius));
-    } else {
-        const third = otherCorners(candidate).find((corner) => corner !== dragged) as Corner;
-        const along = vec2.sub(points[third], points[candidate]);
-        if (vec2.len(along) < 1) return triangle;
-        const unit = vec2.norm(along);
-        const normal = { x: -unit.y, y: unit.x };
-        const offset = vec2.sub(points[dragged], points[candidate]);
-        snapped = vec2.add(points[candidate], vec2.scale(normal, vec2.dot(offset, normal)));
-    }
-
-    const clamped = {
-        x: clamp(snapped.x, BOUNDS.minX, BOUNDS.maxX),
-        y: clamp(snapped.y, BOUNDS.minY, BOUNDS.maxY),
+const footLimits = (start: Vec2, along: Vec2): [number, number] => {
+    const pad = 18;
+    const limitsFor = (from: number, delta: number, low: number, high: number): [number, number] => {
+        if (Math.abs(delta) < 1e-6) return [-0.3, 1.3];
+        const first = (low - from) / delta;
+        const second = (high - from) / delta;
+        return [Math.min(first, second), Math.max(first, second)];
     };
-    const key = dragged.toLowerCase() as "a" | "b" | "c";
-    return { ...triangle, [`${key}x`]: clamped.x, [`${key}y`]: clamped.y };
-};
-
-const svgPointFromEvent = (event: React.PointerEvent, svg: SVGSVGElement | null): Vec2 => {
-    if (!svg) return { x: 0, y: 0 };
-    const rect = svg.getBoundingClientRect();
-    return {
-        x: ((event.clientX - rect.left) / rect.width) * VIEW_WIDTH,
-        y: ((event.clientY - rect.top) / rect.height) * VIEW_HEIGHT,
-    };
+    const [xLow, xHigh] = limitsFor(start.x, along.x, BOUNDS.minX + pad, BOUNDS.maxX - pad);
+    const [yLow, yHigh] = limitsFor(start.y, along.y, BOUNDS.minY + pad, BOUNDS.maxY - pad);
+    return [Math.max(-0.3, xLow, yLow), Math.min(1.3, xHigh, yHigh)];
 };
 
 // ── Highlight helpers (the linked-highlight contract) ────────────────────────
@@ -156,137 +98,111 @@ const useHighlightState = () => {
 const Halo = ({ active, children }: { active: boolean; children: React.ReactNode }) =>
     active ? <g opacity={0.28}>{children}</g> : null;
 
+const svgPointFromEvent = (event: React.PointerEvent, svg: SVGSVGElement | null): Vec2 => {
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
+    return {
+        x: ((event.clientX - rect.left) / rect.width) * VIEW_WIDTH,
+        y: ((event.clientY - rect.top) / rect.height) * VIEW_HEIGHT,
+    };
+};
+
 // ── The drawing ──────────────────────────────────────────────────────────────
 
-function TipedTriangleDrawing() {
+function SketchRightTriangleDrawing() {
     const setVar = useSetVar();
     const triangle = useVar<TriangleState>("namingTriangle", DEFAULT_TRIANGLE);
-    const guess = useVar<string>("namingGuess", "");
+    const apex = useVar<string>("namingApex", "C") as Corner;
+    const foot = useVar<number>("namingFoot", START_FOOT);
     const { opacity, weight, isActive, hoverProps } = useHighlightState();
 
     const [draggingCorner, setDraggingCorner] = useState<Corner | null>(null);
     const [hoveredCorner, setHoveredCorner] = useState<Corner | null>(null);
-    const draggingRef = useRef<Corner | null>(null);
+    const [draggingFoot, setDraggingFoot] = useState(false);
+    const [hoveredFoot, setHoveredFoot] = useState(false);
+    const draggingCornerRef = useRef<Corner | null>(null);
+    const draggingFootRef = useRef(false);
+    const pressOriginRef = useRef<Vec2>({ x: 0, y: 0 });
+    const movedRef = useRef(false);
     const svgRef = useRef<SVGSVGElement>(null);
+    const footScale = useSpring(draggingFoot || hoveredFoot ? 1.15 : 1, { stiffness: 400, damping: 26 });
 
     const points = pointsOf(triangle);
-    const rightCorner = rightAngleCorner(triangle);
-    const revealed = guess !== "";
-    const trueHypotenuse = rightCorner ? OPPOSITE_SIDE[rightCorner] : null;
+    const [baseStart, baseEnd] = baseCorners(apex);
+    const startPoint = points[baseStart];
+    const endPoint = points[baseEnd];
+    const apexPoint = points[apex];
 
-    // Numeric mirrors of the state, so guided hints can watch for progress.
+    const along = vec2.sub(endPoint, startPoint);
+    const baseLength = Math.max(vec2.len(along), 1);
+    const unit = vec2.scale(along, 1 / baseLength);
+    // Where the foot has to sit for the line to stand square to the base.
+    const squareFoot = vec2.dot(vec2.sub(apexPoint, startPoint), unit) / baseLength;
+    const height = Math.abs(vec2.dot(vec2.sub(apexPoint, startPoint), { x: -unit.y, y: unit.x }));
+    const snapWindow = (height * Math.tan((SNAP_DEGREES * Math.PI) / 180)) / baseLength;
+
+    // Corners can be dragged after the foot was placed, so the stored position
+    // is kept inside the drawing here as well as during the drag.
+    const [lowestFoot, highestFoot] = footLimits(startPoint, along);
+    const safeFoot = clamp(foot, lowestFoot, highestFoot);
+    const isSquare = Math.abs(safeFoot - squareFoot) < 1e-6;
+    const footPoint = vec2.add(startPoint, vec2.scale(along, safeFoot));
+
     useEffect(() => {
-        setVar("namingHasRightAngle", rightCorner ? 1 : 0);
-        setVar("namingGuessCorrect", revealed && guess === trueHypotenuse ? 1 : 0);
-    }, [rightCorner, revealed, guess, trueHypotenuse, setVar]);
+        setVar("namingPerpendicular", isSquare ? 1 : 0);
+    }, [isSquare, setVar]);
 
-    const handlePointerMove = (event: React.PointerEvent<SVGCircleElement>) => {
-        const corner = draggingRef.current;
+    const moveFoot = (event: React.PointerEvent<SVGCircleElement>) => {
+        if (!draggingFootRef.current) return;
+        const point = svgPointFromEvent(event, svgRef.current);
+        const raw = vec2.dot(vec2.sub(point, startPoint), unit) / baseLength;
+        const snapped = Math.abs(raw - squareFoot) < snapWindow ? squareFoot : raw;
+        const [lowest, highest] = footLimits(startPoint, along);
+        setVar("namingFoot", clamp(snapped, lowest, highest));
+        setVar("namingExplored", true);
+    };
+
+    const moveCorner = (event: React.PointerEvent<SVGCircleElement>) => {
+        const corner = draggingCornerRef.current;
         if (!corner) return;
         const point = svgPointFromEvent(event, svgRef.current);
+        if (vec2.dist(point, pressOriginRef.current) > 4) movedRef.current = true;
         const key = corner.toLowerCase() as "a" | "b" | "c";
-        const moved: TriangleState = {
+        setVar("namingTriangle", {
             ...triangle,
             [`${key}x`]: clamp(point.x, BOUNDS.minX, BOUNDS.maxX),
             [`${key}y`]: clamp(point.y, BOUNDS.minY, BOUNDS.maxY),
-        };
-        setVar("namingTriangle", snapToRightAngle(moved, corner));
-    };
-
-    const startDrag = (corner: Corner) => (event: React.PointerEvent<SVGCircleElement>) => {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        draggingRef.current = corner;
-        setDraggingCorner(corner);
+        });
         setVar("namingExplored", true);
     };
 
-    const endDrag = () => {
-        draggingRef.current = null;
+    const releaseCorner = (corner: Corner) => () => {
+        // A press that never moved is a tap: drop the line from that corner.
+        if (!movedRef.current && corner !== apex) {
+            setVar("namingApex", corner);
+            setVar("namingFoot", START_FOOT);
+        }
+        draggingCornerRef.current = null;
         setDraggingCorner(null);
     };
 
-    const chooseSide = (side: Side) => () => {
-        setVar("namingGuess", side);
-        setVar("namingExplored", true);
-    };
-
-    const rightAngleMark = () => {
-        if (!revealed || !rightCorner) return null;
-        const [first, second] = otherCorners(rightCorner);
-        const corner = points[rightCorner];
-        const u = vec2.scale(vec2.norm(vec2.sub(points[first], corner)), 17);
-        const v = vec2.scale(vec2.norm(vec2.sub(points[second], corner)), 17);
-        const path =
-            `M ${corner.x + u.x} ${corner.y + u.y} ` +
-            `L ${corner.x + u.x + v.x} ${corner.y + u.y + v.y} ` +
-            `L ${corner.x + v.x} ${corner.y + v.y}`;
+    // The right-angle squares, one for each of the two new triangles.
+    const squareMarks = () => {
+        if (!isSquare) return null;
+        const up = vec2.scale(vec2.norm(vec2.sub(apexPoint, footPoint)), 15);
+        const side = vec2.scale(unit, 15);
+        const corner = (direction: Vec2) =>
+            `M ${footPoint.x + direction.x} ${footPoint.y + direction.y} ` +
+            `L ${footPoint.x + direction.x + up.x} ${footPoint.y + direction.y + up.y} ` +
+            `L ${footPoint.x + up.x} ${footPoint.y + up.y}`;
         return (
             <g {...hoverProps("rightangle")} opacity={opacity("rightangle")} style={EASE_150}>
                 <Halo active={isActive("rightangle")}>
-                    <path d={path} fill="none" stroke={INK} strokeWidth={weight("rightangle", 2) + 6} strokeLinejoin="round" />
+                    <path d={corner(side)} fill="none" stroke={INK} strokeWidth={weight("rightangle", 2) + 6} strokeLinejoin="round" />
+                    <path d={corner(vec2.scale(side, -1))} fill="none" stroke={INK} strokeWidth={weight("rightangle", 2) + 6} strokeLinejoin="round" />
                 </Halo>
-                <path d={path} fill="none" stroke={INK} strokeWidth={weight("rightangle", 2)} strokeLinejoin="round" />
-            </g>
-        );
-    };
-
-    const sideLine = (side: Side) => {
-        const [from, to] = SIDE_ENDS[side];
-        const isHypotenuse = revealed && trueHypotenuse === side;
-        const isGuess = guess === side;
-        const groupId = isHypotenuse ? "hypotenuse" : "__structure";
-        return (
-            <g
-                key={side}
-                {...(isHypotenuse ? hoverProps("hypotenuse") : {})}
-                opacity={opacity(groupId)}
-                style={EASE_150}
-            >
-                {isHypotenuse && (
-                    <Halo active={isActive("hypotenuse")}>
-                        <line
-                            x1={points[from].x}
-                            y1={points[from].y}
-                            x2={points[to].x}
-                            y2={points[to].y}
-                            stroke={ACCENT}
-                            strokeWidth={weight("hypotenuse", 3.5) + 6}
-                            strokeLinecap="round"
-                        />
-                    </Halo>
-                )}
-                <line
-                    x1={points[from].x}
-                    y1={points[from].y}
-                    x2={points[to].x}
-                    y2={points[to].y}
-                    stroke={isHypotenuse ? ACCENT : INK_STRUCTURE}
-                    strokeWidth={isHypotenuse ? weight("hypotenuse", 3.5) : 2}
-                    strokeLinecap="round"
-                />
-                {isGuess && (
-                    <line
-                        x1={points[from].x}
-                        y1={points[from].y}
-                        x2={points[to].x}
-                        y2={points[to].y}
-                        stroke={GUESS}
-                        strokeWidth="2"
-                        strokeDasharray="6 6"
-                        strokeLinecap="round"
-                    />
-                )}
-                {/* Generous transparent strip so a side is easy to tap. */}
-                <line
-                    x1={points[from].x}
-                    y1={points[from].y}
-                    x2={points[to].x}
-                    y2={points[to].y}
-                    stroke="transparent"
-                    strokeWidth="22"
-                    style={{ cursor: "pointer", touchAction: "none" }}
-                    onPointerDown={chooseSide(side)}
-                />
+                <path d={corner(side)} fill="none" stroke={INK} strokeWidth={weight("rightangle", 2)} strokeLinejoin="round" />
+                <path d={corner(vec2.scale(side, -1))} fill="none" stroke={INK} strokeWidth={weight("rightangle", 2)} strokeLinejoin="round" />
             </g>
         );
     };
@@ -296,17 +212,23 @@ function TipedTriangleDrawing() {
         const active = draggingCorner === corner || hoveredCorner === corner;
         return (
             <g key={corner}>
-                <CornerDot x={point.x} y={point.y} active={active} />
+                <CornerDot x={point.x} y={point.y} active={active} isApex={corner === apex} />
                 <circle
                     cx={point.x}
                     cy={point.y}
                     r="22"
                     fill="transparent"
                     style={{ cursor: draggingCorner === corner ? "grabbing" : "grab", touchAction: "none" }}
-                    onPointerDown={startDrag(corner)}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={endDrag}
-                    onPointerCancel={endDrag}
+                    onPointerDown={(event) => {
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        draggingCornerRef.current = corner;
+                        pressOriginRef.current = svgPointFromEvent(event, svgRef.current);
+                        movedRef.current = false;
+                        setDraggingCorner(corner);
+                    }}
+                    onPointerMove={moveCorner}
+                    onPointerUp={releaseCorner(corner)}
+                    onPointerCancel={releaseCorner(corner)}
                     onPointerEnter={() => setHoveredCorner(corner)}
                     onPointerLeave={() => setHoveredCorner(null)}
                 />
@@ -314,113 +236,178 @@ function TipedTriangleDrawing() {
         );
     };
 
+    const outsideFoot = safeFoot < 0 || safeFoot > 1;
+    const nearestEnd = safeFoot < 0 ? startPoint : endPoint;
+
     return (
         <svg
             ref={svgRef}
             viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
             className="block w-full select-none"
             role="img"
-            aria-label="A tipped triangle whose corners can be dragged; tapping a side commits a guess at the hypotenuse"
+            aria-label="A slanted triangle with a line dropped from one corner; sliding its foot along the base makes it square"
         >
             <defs>
-                <filter id="naming-corner-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <filter id="naming-handle-shadow" x="-50%" y="-50%" width="200%" height="200%">
                     <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="#0F172A" floodOpacity="0.25" />
                 </filter>
             </defs>
 
-            {/* The ghost of the starting triangle — every change stays visible
-                against where it began. */}
-            <polygon
-                points={`${DEFAULT_TRIANGLE.ax},${DEFAULT_TRIANGLE.ay} ${DEFAULT_TRIANGLE.bx},${DEFAULT_TRIANGLE.by} ${DEFAULT_TRIANGLE.cx},${DEFAULT_TRIANGLE.cy}`}
-                fill="none"
-                stroke={INK_QUIET}
-                strokeWidth="1.5"
-                strokeDasharray="4 6"
-                opacity={opacity("__structure")}
-                style={EASE_150}
-            />
+            {/* The two right triangles, tinted only once the line is square. */}
+            {isSquare && (
+                <g opacity={opacity("__structure")} style={EASE_150}>
+                    <polygon
+                        points={`${startPoint.x},${startPoint.y} ${footPoint.x},${footPoint.y} ${apexPoint.x},${apexPoint.y}`}
+                        fill={ACCENT}
+                        opacity={0.1}
+                    />
+                    <polygon
+                        points={`${footPoint.x},${footPoint.y} ${endPoint.x},${endPoint.y} ${apexPoint.x},${apexPoint.y}`}
+                        fill={ACCENT}
+                        opacity={0.16}
+                    />
+                </g>
+            )}
 
-            {(["AB", "BC", "CA"] as Side[]).map(sideLine)}
-            {rightAngleMark()}
+            {/* The base — a leg of both new triangles, never a hypotenuse. */}
+            <g opacity={opacity("__structure")} style={EASE_150}>
+                {outsideFoot && (
+                    <line x1={nearestEnd.x} y1={nearestEnd.y} x2={footPoint.x} y2={footPoint.y} stroke={INK_QUIET} strokeWidth="1.5" strokeDasharray="4 6" />
+                )}
+                <line x1={startPoint.x} y1={startPoint.y} x2={endPoint.x} y2={endPoint.y} stroke={INK_STRUCTURE} strokeWidth="2" strokeLinecap="round" />
+            </g>
+
+            {/* The two sloping sides — the hypotenuse of each new triangle. */}
+            <g {...hoverProps("hypotenuse")} opacity={opacity("hypotenuse")} style={EASE_150}>
+                <Halo active={isActive("hypotenuse")}>
+                    <line x1={startPoint.x} y1={startPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2) + 6} strokeLinecap="round" />
+                    <line x1={endPoint.x} y1={endPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2) + 6} strokeLinecap="round" />
+                </Halo>
+                <line x1={startPoint.x} y1={startPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2)} strokeLinecap="round" />
+                <line x1={endPoint.x} y1={endPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2)} strokeLinecap="round" />
+            </g>
+
+            {/* The dropped line — the one accent, and the thing being aimed. */}
+            <g {...hoverProps("height")} opacity={opacity("height")} style={EASE_150}>
+                <Halo active={isActive("height")}>
+                    <line x1={apexPoint.x} y1={apexPoint.y} x2={footPoint.x} y2={footPoint.y} stroke={ACCENT} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
+                </Halo>
+                <line
+                    x1={apexPoint.x}
+                    y1={apexPoint.y}
+                    x2={footPoint.x}
+                    y2={footPoint.y}
+                    stroke={ACCENT}
+                    strokeWidth={weight("height", isSquare ? 3 : 2.5)}
+                    strokeLinecap="round"
+                    strokeDasharray={isSquare ? undefined : "7 6"}
+                />
+            </g>
+
+            {squareMarks()}
+
             <g opacity={opacity("__structure")} style={EASE_150}>
                 {CORNERS.map(cornerHandle)}
             </g>
+
+            {/* The foot handle — slides along the base. */}
+            <g transform={`translate(${footPoint.x} ${footPoint.y}) scale(${footScale})`}>
+                <circle r="8" fill={ACCENT} filter="url(#naming-handle-shadow)" />
+            </g>
+            <circle
+                cx={footPoint.x}
+                cy={footPoint.y}
+                r="24"
+                fill="transparent"
+                style={{ cursor: draggingFoot ? "grabbing" : "grab", touchAction: "none" }}
+                onPointerDown={(event) => {
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    draggingFootRef.current = true;
+                    setDraggingFoot(true);
+                }}
+                onPointerMove={moveFoot}
+                onPointerUp={() => {
+                    draggingFootRef.current = false;
+                    setDraggingFoot(false);
+                }}
+                onPointerCancel={() => {
+                    draggingFootRef.current = false;
+                    setDraggingFoot(false);
+                }}
+                onPointerEnter={() => setHoveredFoot(true)}
+                onPointerLeave={() => setHoveredFoot(false)}
+            />
         </svg>
     );
 }
 
-function CornerDot({ x, y, active }: { x: number; y: number; active: boolean }) {
+function CornerDot({ x, y, active, isApex }: { x: number; y: number; active: boolean; isApex: boolean }) {
     const scale = useSpring(active ? 1.15 : 1, { stiffness: 400, damping: 26 });
     return (
         <g transform={`translate(${x} ${y}) scale(${scale})`}>
-            <circle r="7" fill={ACCENT} filter="url(#naming-corner-shadow)" />
+            <circle
+                r="7"
+                fill={isApex ? INK : "#FFFFFF"}
+                stroke={INK}
+                strokeWidth="2"
+                filter="url(#naming-handle-shadow)"
+            />
         </g>
     );
 }
 
 // ── Status line, below the drawing ───────────────────────────────────────────
 
-function TriangleStatus() {
-    const triangle = useVar<TriangleState>("namingTriangle", DEFAULT_TRIANGLE);
-    const guess = useVar<string>("namingGuess", "");
-    const rightCorner = rightAngleCorner(triangle);
-
-    if (guess === "") {
-        return <span className="text-slate-500">Tap a side to commit to your choice.</span>;
-    }
-    if (!rightCorner) {
-        return (
-            <span className="text-amber-600">
-                No square appeared: this triangle has no right angle, so it has no hypotenuse at all.
-            </span>
-        );
-    }
-    if (guess === OPPOSITE_SIDE[rightCorner]) {
+function SketchStatus() {
+    const square = useVar<number>("namingPerpendicular", 0);
+    if (square === 1) {
         return (
             <span className="text-emerald-600">
-                That side sits directly across from the square, so it is the hypotenuse.
+                Square on both sides: two right triangles, each one ready for sine, cosine and tangent.
             </span>
         );
     }
     return (
-        <span className="text-amber-600">
-            That side runs into the square, so it is a leg. The hypotenuse is the side facing it.
+        <span className="text-slate-500">
+            The dropped line still leans. Slide its foot along the base until it stands square.
         </span>
     );
 }
 
 // ── Figure shell ─────────────────────────────────────────────────────────────
 
-function TippedTriangleFigure() {
+function SketchRightTriangleFigure() {
     const setVar = useSetVar();
-    const guess = useVar<string>("namingGuess", "");
+    const square = useVar<number>("namingPerpendicular", 0);
     return (
         <Figure
-            id="naming-tipped-triangle"
+            id="naming-sketch-right-triangle"
             onReset={() => {
                 setVar("namingTriangle", { ...DEFAULT_TRIANGLE });
-                setVar("namingGuess", "");
+                setVar("namingApex", "C");
+                setVar("namingFoot", START_FOOT);
                 setVar("namingHighlight", "");
             }}
-            caption="Tap the side you think is the hypotenuse. The right-angle square appears only once you have committed, and dragging any corner starts a fresh triangle."
+            caption="A triangle with no right angle anywhere. Slide the foot of the dropped line along the base until it stands square, and tap any corner to drop the line from there instead."
         >
-            <TipedTriangleDrawing />
+            <SketchRightTriangleDrawing />
             <div className="px-6 pb-5 text-sm">
-                <TriangleStatus />
+                <SketchStatus />
             </div>
             <InteractionHintSequence
-                hintKey="naming-triangle-tap"
-                currentStep={guess === "" ? 0 : 1}
+                hintKey="naming-sketch-foot"
+                currentStep={square === 1 ? 1 : 0}
                 steps={[
                     {
-                        gesture: "click",
-                        label: "Tap the side you think is the hypotenuse",
-                        position: { x: "47%", y: "50%" },
+                        gesture: "drag-horizontal",
+                        label: "Slide the foot along the base until the line stands square",
+                        position: { x: "66%", y: "60%" },
+                        dragPath: { type: "line", startOffset: { x: 26, y: 0 }, endOffset: { x: -26, y: 0 } },
                     },
                     {
-                        gesture: "drag",
-                        label: "Drag a corner to tip the triangle and try again",
-                        position: { x: "75%", y: "72%" },
+                        gesture: "click",
+                        label: "Tap another corner to drop the line from there instead",
+                        position: { x: "20%", y: "68%" },
                     },
                 ]}
             />
@@ -442,32 +429,31 @@ export const namingTheSidesBlocks: ReactElement[] = [
     <StackLayout key="layout-naming-setup" maxWidth="xl">
         <Block id="naming-setup" padding="sm">
             <EditableParagraph id="para-naming-setup" blockId="naming-setup">
-                This is where marks quietly disappear. Tap the side you believe is the hypotenuse,
-                then drag any corner to tip the triangle into a new shape and try again. The little
-                square only turns up once you have committed.
+                Sine, cosine and tangent only ever work on a right triangle, and most triangles are
+                not one. So we sketch one in: slide the foot of the dropped line along the base until
+                it stands perfectly square, and tap a different corner to drop it from there instead.
             </EditableParagraph>
         </Block>
     </StackLayout>,
 
     <StackLayout key="layout-naming-visual" maxWidth="xl">
         <Block id="naming-visual" padding="sm" hasVisualization>
-            <TippedTriangleFigure />
+            <SketchRightTriangleFigure />
         </Block>
     </StackLayout>,
 
     <StackLayout key="layout-naming-rule" maxWidth="xl">
         <Block id="naming-rule" padding="sm">
             <EditableParagraph id="para-naming-rule" blockId="naming-rule">
-                The{" "}
+                One line, and there are suddenly two right triangles to work with. Each brings its own{" "}
                 <InlineLinkedHighlight
                     varName="namingHighlight"
                     highlightId="hypotenuse"
                     {...linkedHighlightPropsFromDefinition(getVariableInfo("namingHighlight"))}
                 >
                     hypotenuse
-                </InlineLinkedHighlight>{" "}
-                is not whichever side looks longest on the page; it is the side lying straight across
-                from the{" "}
+                </InlineLinkedHighlight>
+                , the sloping side facing its own{" "}
                 <InlineLinkedHighlight
                     varName="namingHighlight"
                     highlightId="rightangle"
@@ -475,8 +461,8 @@ export const namingTheSidesBlocks: ReactElement[] = [
                 >
                     right angle
                 </InlineLinkedHighlight>
-                . Pull a corner far enough and the square vanishes, and a triangle with no right angle
-                has no hypotenuse either.
+                . The long base they share is a leg of both and the hypotenuse of neither, however
+                long it looks.
             </EditableParagraph>
         </Block>
     </StackLayout>,
@@ -508,24 +494,16 @@ export const namingTheSidesBlocks: ReactElement[] = [
                             hintKey: "feedback-naming-hypotenuse",
                             steps: [
                                 {
-                                    gesture: "drag",
-                                    label: "Drag a corner until the small square appears at one corner",
-                                    position: { x: "75%", y: "72%" },
-                                    completionVar: "namingHasRightAngle",
-                                    completionValue: 1,
-                                    completionTolerance: 0.4,
-                                },
-                                {
-                                    gesture: "click",
-                                    label: "Now tap the one side that does not run into that square",
-                                    position: { x: "47%", y: "50%" },
-                                    completionVar: "namingGuessCorrect",
+                                    gesture: "drag-horizontal",
+                                    label: "Slide the foot until the line stands square, then look at the side facing each little square",
+                                    position: { x: "66%", y: "60%" },
+                                    completionVar: "namingPerpendicular",
                                     completionValue: 1,
                                     completionTolerance: 0.4,
                                 },
                             ],
                             label: "Discover it yourself",
-                            resetVars: { namingGuess: "", namingHighlight: "" },
+                            resetVars: { namingApex: "C", namingFoot: 0.72, namingHighlight: "" },
                         }}
                     >
                         <InlineClozeInput

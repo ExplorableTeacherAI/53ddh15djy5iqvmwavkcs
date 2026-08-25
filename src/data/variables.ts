@@ -223,44 +223,46 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
 
     /** The three corners of the tipped triangle, in view coordinates. */
     namingTriangle: {
-        defaultValue: { ax: 110, ay: 110, bx: 400, by: 80, cx: 419.6, cy: 269 },
+        defaultValue: { ax: 110, ay: 255, bx: 470, by: 215, cx: 250, cy: 80 },
         type: 'object',
         label: 'Triangle corners',
         description: 'Positions of corners A, B and C of the tipped triangle',
         schema: '{ ax: number, ay: number, bx: number, by: number, cx: number, cy: number }',
     },
 
-    /** Which side the student has committed to: '' | 'AB' | 'BC' | 'CA'. */
-    namingGuess: {
-        defaultValue: '',
-        type: 'text',
-        label: 'Chosen side',
-        description: 'The side the student tapped as their hypotenuse guess',
+    /** The corner the perpendicular is dropped from: 'A' | 'B' | 'C'. */
+    namingApex: {
+        defaultValue: 'C',
+        type: 'select',
+        label: 'Apex corner',
+        description: 'The corner the height line is dropped from',
+        options: ['A', 'B', 'C'],
     },
 
-    /** 1 when the current triangle actually has a right angle, else 0. */
-    namingHasRightAngle: {
-        defaultValue: 1,
+    /** How far along the base the foot of the height sits, as a fraction. */
+    namingFoot: {
+        defaultValue: 0.72,
         type: 'number',
-        label: 'Right angle present',
-        description: 'Whether the triangle currently has a right angle',
-        min: 0,
-        max: 1,
-        step: 1,
+        label: 'Foot position',
+        description: 'Position of the foot of the height along the base, from 0 to 1',
+        min: -0.3,
+        max: 1.3,
+        step: 0.01,
+        color: '#62D0AD',
     },
 
-    /** 1 when the student's tapped side really is the hypotenuse, else 0. */
-    namingGuessCorrect: {
+    /** 1 once the dropped line stands square to the base. */
+    namingPerpendicular: {
         defaultValue: 0,
         type: 'number',
-        label: 'Guess correct',
-        description: 'Whether the tapped side is the hypotenuse',
+        label: 'Line is square',
+        description: 'Whether the dropped line is perpendicular to the base',
         min: 0,
         max: 1,
         step: 1,
     },
 
-    /** Shared highlight channel: '' | 'rightangle' | 'hypotenuse'. */
+    /** Shared highlight channel: '' | 'rightangle' | 'hypotenuse' | 'height'. */
     namingHighlight: {
         defaultValue: '',
         type: 'text',
