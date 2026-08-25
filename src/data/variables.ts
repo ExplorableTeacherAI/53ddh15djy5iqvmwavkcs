@@ -130,6 +130,82 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         step: 1,
     },
 
+    // ========================================
+    // SECTION: Naming the Sides
+    // ========================================
+
+    /** The three corners of the tipped triangle, in view coordinates. */
+    namingTriangle: {
+        defaultValue: { ax: 110, ay: 110, bx: 400, by: 80, cx: 419.6, cy: 269 },
+        type: 'object',
+        label: 'Triangle corners',
+        description: 'Positions of corners A, B and C of the tipped triangle',
+        schema: '{ ax: number, ay: number, bx: number, by: number, cx: number, cy: number }',
+    },
+
+    /** Which side the student has committed to: '' | 'AB' | 'BC' | 'CA'. */
+    namingGuess: {
+        defaultValue: '',
+        type: 'text',
+        label: 'Chosen side',
+        description: 'The side the student tapped as their hypotenuse guess',
+    },
+
+    /** 1 when the current triangle actually has a right angle, else 0. */
+    namingHasRightAngle: {
+        defaultValue: 1,
+        type: 'number',
+        label: 'Right angle present',
+        description: 'Whether the triangle currently has a right angle',
+        min: 0,
+        max: 1,
+        step: 1,
+    },
+
+    /** 1 when the student's tapped side really is the hypotenuse, else 0. */
+    namingGuessCorrect: {
+        defaultValue: 0,
+        type: 'number',
+        label: 'Guess correct',
+        description: 'Whether the tapped side is the hypotenuse',
+        min: 0,
+        max: 1,
+        step: 1,
+    },
+
+    /** Shared highlight channel: '' | 'rightangle' | 'hypotenuse'. */
+    namingHighlight: {
+        defaultValue: '',
+        type: 'text',
+        label: 'Triangle highlight',
+        description: 'Which part of the triangle is currently highlighted',
+        color: '#3FA98A',
+        bgColor: 'rgba(98, 208, 173, 0.22)',
+    },
+
+    /** Answer: naming the hypotenuse of triangle PQR from where the right angle sits. */
+    answer_naming_hypotenuse: {
+        defaultValue: '',
+        type: 'text',
+        label: 'Hypotenuse of PQR',
+        description: 'Student answer naming the hypotenuse when the right angle is at Q',
+        placeholder: '???',
+        correctAnswer: ['PR', 'RP'],
+        color: '#8E90F5',
+    },
+
+    /** Answer: naming side QR when working from angle P. */
+    answer_naming_side_from_p: {
+        defaultValue: '',
+        type: 'select',
+        label: 'Name of side QR from angle P',
+        description: 'Student answer naming QR relative to angle P',
+        placeholder: '???',
+        correctAnswer: 'opposite',
+        options: ['opposite', 'adjacent', 'hypotenuse'],
+        color: '#8E90F5',
+    },
+
     /** Answer: what the height-to-length ratio actually depends on. */
     answer_ratio_depends: {
         defaultValue: '',
