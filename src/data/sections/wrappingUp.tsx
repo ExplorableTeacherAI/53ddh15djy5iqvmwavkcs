@@ -9,7 +9,7 @@ export const wrappingUpBlocks: ReactElement[] = [
     <StackLayout key="layout-wrapping-heading" maxWidth="xl">
         <Block id="wrapping-heading" padding="md">
             <EditableH2 id="h2-wrapping-heading" blockId="wrapping-heading">
-                Wrapping Up
+                Summary: The Three Trigonometric Ratios
             </EditableH2>
         </Block>
     </StackLayout>,

@@ -8,7 +8,7 @@ export const findingMissingSideBlocks: ReactElement[] = [
     <StackLayout key="layout-orient-title" maxWidth="xl">
         <Block id="orient-title" padding="md">
             <EditableH1 id="h1-orient-title" blockId="orient-title">
-                Finding a Missing Side
+                Right-Triangle Trigonometry: Solving for an Unknown Side
             </EditableH1>
         </Block>
     </StackLayout>,

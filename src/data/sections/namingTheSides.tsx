@@ -431,7 +431,7 @@ export const namingTheSidesBlocks: ReactElement[] = [
     <StackLayout key="layout-naming-heading" maxWidth="xl">
         <Block id="naming-heading" padding="md">
             <EditableH2 id="h2-naming-heading" blockId="naming-heading">
-                Naming the Sides
+                Labelling the Sides: Hypotenuse, Opposite and Adjacent
             </EditableH2>
         </Block>
     </StackLayout>,

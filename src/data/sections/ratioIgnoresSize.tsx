@@ -483,7 +483,7 @@ export const ratioIgnoresSizeBlocks: ReactElement[] = [
     <StackLayout key="layout-ratio-heading" maxWidth="xl">
         <Block id="ratio-heading" padding="md">
             <EditableH2 id="h2-ratio-heading" blockId="ratio-heading">
-                The Ratio That Ignores Size
+                Similarity and the Invariance of Side Ratios
             </EditableH2>
         </Block>
     </StackLayout>,

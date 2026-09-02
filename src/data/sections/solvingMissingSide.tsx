@@ -391,7 +391,7 @@ export const solvingMissingSideBlocks: ReactElement[] = [
     <StackLayout key="layout-solving-heading" maxWidth="xl">
         <Block id="solving-heading" padding="md">
             <EditableH2 id="h2-solving-heading" blockId="solving-heading">
-                Solving for the Missing Side
+                Applying the Trigonometric Ratios to an Unknown Side
             </EditableH2>
         </Block>
     </StackLayout>,
