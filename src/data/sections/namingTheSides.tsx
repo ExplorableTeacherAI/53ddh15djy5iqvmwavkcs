@@ -8,17 +8,19 @@ import {
     InlineClozeInput,
     InlineFeedback,
     InlineLinkedHighlight,
+    InlineSpotColor,
+    InlineTooltip,
     InteractionHintSequence,
     RevealOnInteraction,
 } from "@/components/atoms";
-import { Figure } from "@/components/molecules";
+import { Figure, FormulaBlock } from "@/components/molecules";
 import { useVar, useSetVar } from "@/stores";
 import { clamp, useSpring, vec2, type Vec2 } from "@/lib/motion";
 import {
     choicePropsFromDefinition,
     clozePropsFromDefinition,
     getVariableInfo,
-    linkedHighlightPropsFromDefinition,
+    spotColorPropsFromDefinition,
 } from "../variables";
 
 // ── View geometry ────────────────────────────────────────────────────────────
@@ -28,9 +30,14 @@ const VIEW_HEIGHT = 330;
 const BOUNDS = { minX: 48, maxX: 512, minY: 58, maxY: 288 };
 
 const INK = "#334155";
-const INK_STRUCTURE = "#64748B";
 const INK_QUIET = "#CBD5E1";
-const ACCENT = "#62D0AD";
+
+// The lesson's shared colour language: teal is the side facing the angle,
+// violet is the hypotenuse, amber is the leg touching the angle.
+const OPPOSITE = "#62D0AD";
+const OPPOSITE_TEXT = "#3FA98A";
+const HYPOTENUSE = "#9575E8";
+const ADJACENT = "#D9922B";
 
 const EASE_150 = { transition: "opacity 150ms ease, stroke-width 150ms ease" } as const;
 
@@ -258,46 +265,49 @@ function SketchRightTriangleDrawing() {
                 <g opacity={opacity("__structure")} style={EASE_150}>
                     <polygon
                         points={`${startPoint.x},${startPoint.y} ${footPoint.x},${footPoint.y} ${apexPoint.x},${apexPoint.y}`}
-                        fill={ACCENT}
+                        fill={OPPOSITE}
                         opacity={0.1}
                     />
                     <polygon
                         points={`${footPoint.x},${footPoint.y} ${endPoint.x},${endPoint.y} ${apexPoint.x},${apexPoint.y}`}
-                        fill={ACCENT}
+                        fill={OPPOSITE}
                         opacity={0.16}
                     />
                 </g>
             )}
 
             {/* The base — a leg of both new triangles, never a hypotenuse. */}
-            <g opacity={opacity("__structure")} style={EASE_150}>
+            <g {...hoverProps("base")} opacity={opacity("base")} style={EASE_150}>
                 {outsideFoot && (
                     <line x1={nearestEnd.x} y1={nearestEnd.y} x2={footPoint.x} y2={footPoint.y} stroke={INK_QUIET} strokeWidth="1.5" strokeDasharray="4 6" />
                 )}
-                <line x1={startPoint.x} y1={startPoint.y} x2={endPoint.x} y2={endPoint.y} stroke={INK_STRUCTURE} strokeWidth="2" strokeLinecap="round" />
+                <Halo active={isActive("base")}>
+                    <line x1={startPoint.x} y1={startPoint.y} x2={endPoint.x} y2={endPoint.y} stroke={ADJACENT} strokeWidth={weight("base", 2.5) + 6} strokeLinecap="round" />
+                </Halo>
+                <line x1={startPoint.x} y1={startPoint.y} x2={endPoint.x} y2={endPoint.y} stroke={ADJACENT} strokeWidth={weight("base", 2.5)} strokeLinecap="round" />
             </g>
 
             {/* The two sloping sides — the hypotenuse of each new triangle. */}
             <g {...hoverProps("hypotenuse")} opacity={opacity("hypotenuse")} style={EASE_150}>
                 <Halo active={isActive("hypotenuse")}>
-                    <line x1={startPoint.x} y1={startPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2) + 6} strokeLinecap="round" />
-                    <line x1={endPoint.x} y1={endPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2) + 6} strokeLinecap="round" />
+                    <line x1={startPoint.x} y1={startPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={HYPOTENUSE} strokeWidth={weight("hypotenuse", 2.5) + 6} strokeLinecap="round" />
+                    <line x1={endPoint.x} y1={endPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={HYPOTENUSE} strokeWidth={weight("hypotenuse", 2.5) + 6} strokeLinecap="round" />
                 </Halo>
-                <line x1={startPoint.x} y1={startPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2)} strokeLinecap="round" />
-                <line x1={endPoint.x} y1={endPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={INK_STRUCTURE} strokeWidth={weight("hypotenuse", 2)} strokeLinecap="round" />
+                <line x1={startPoint.x} y1={startPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={HYPOTENUSE} strokeWidth={weight("hypotenuse", 2.5)} strokeLinecap="round" />
+                <line x1={endPoint.x} y1={endPoint.y} x2={apexPoint.x} y2={apexPoint.y} stroke={HYPOTENUSE} strokeWidth={weight("hypotenuse", 2.5)} strokeLinecap="round" />
             </g>
 
             {/* The dropped line — the one accent, and the thing being aimed. */}
             <g {...hoverProps("height")} opacity={opacity("height")} style={EASE_150}>
                 <Halo active={isActive("height")}>
-                    <line x1={apexPoint.x} y1={apexPoint.y} x2={footPoint.x} y2={footPoint.y} stroke={ACCENT} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
+                    <line x1={apexPoint.x} y1={apexPoint.y} x2={footPoint.x} y2={footPoint.y} stroke={OPPOSITE} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
                 </Halo>
                 <line
                     x1={apexPoint.x}
                     y1={apexPoint.y}
                     x2={footPoint.x}
                     y2={footPoint.y}
-                    stroke={ACCENT}
+                    stroke={OPPOSITE}
                     strokeWidth={weight("height", isSquare ? 3 : 2.5)}
                     strokeLinecap="round"
                     strokeDasharray={isSquare ? undefined : "7 6"}
@@ -312,7 +322,7 @@ function SketchRightTriangleDrawing() {
 
             {/* The foot handle — slides along the base. */}
             <g transform={`translate(${footPoint.x} ${footPoint.y}) scale(${footScale})`}>
-                <circle r="8" fill={ACCENT} filter="url(#naming-handle-shadow)" />
+                <circle r="8" fill={OPPOSITE} filter="url(#naming-handle-shadow)" />
             </g>
             <circle
                 cx={footPoint.x}
@@ -445,11 +455,13 @@ export const namingTheSidesBlocks: ReactElement[] = [
     <StackLayout key="layout-naming-rule" maxWidth="xl">
         <Block id="naming-rule" padding="sm">
             <EditableParagraph id="para-naming-rule" blockId="naming-rule">
-                One line, and there are suddenly two right triangles to work with. Each brings its own{" "}
+                One line, and there are suddenly two right triangles to work with. Each brings its own
+                violet{" "}
                 <InlineLinkedHighlight
                     varName="namingHighlight"
                     highlightId="hypotenuse"
-                    {...linkedHighlightPropsFromDefinition(getVariableInfo("namingHighlight"))}
+                    color={HYPOTENUSE}
+                    bgColor="rgba(149, 117, 232, 0.20)"
                 >
                     hypotenuse
                 </InlineLinkedHighlight>
@@ -457,12 +469,21 @@ export const namingTheSidesBlocks: ReactElement[] = [
                 <InlineLinkedHighlight
                     varName="namingHighlight"
                     highlightId="rightangle"
-                    {...linkedHighlightPropsFromDefinition(getVariableInfo("namingHighlight"))}
+                    color={INK}
+                    bgColor="rgba(51, 65, 85, 0.14)"
                 >
                     right angle
                 </InlineLinkedHighlight>
-                . The long base they share is a leg of both and the hypotenuse of neither, however
-                long it looks.
+                . The amber{" "}
+                <InlineLinkedHighlight
+                    varName="namingHighlight"
+                    highlightId="base"
+                    color={ADJACENT}
+                    bgColor="rgba(247, 178, 59, 0.22)"
+                >
+                    base
+                </InlineLinkedHighlight>{" "}
+                they share is a leg of both and the hypotenuse of neither, however long it looks.
             </EditableParagraph>
         </Block>
     </StackLayout>,
@@ -470,9 +491,62 @@ export const namingTheSidesBlocks: ReactElement[] = [
     <StackLayout key="layout-naming-opposite-adjacent" maxWidth="xl">
         <Block id="naming-opposite-adjacent" padding="sm">
             <EditableParagraph id="para-naming-opposite-adjacent" blockId="naming-opposite-adjacent">
-                The other two names depend on the angle you work from. The side facing your angle is
-                the opposite, and the leg touching it is the adjacent. Switch angles and those two
-                swap over.
+                The other two names depend on the angle you work from. The side facing your angle is the{" "}
+                <InlineSpotColor
+                    id="spot-naming-opposite"
+                    varName="sideOpposite"
+                    {...spotColorPropsFromDefinition(getVariableInfo("sideOpposite"))}
+                >
+                    opposite
+                </InlineSpotColor>
+                , and the{" "}
+                <InlineTooltip
+                    id="tooltip-naming-leg"
+                    tooltip="A leg is either of the two shorter sides that meet at the right angle. The hypotenuse is never a leg."
+                >
+                    leg
+                </InlineTooltip>{" "}
+                touching it is the{" "}
+                <InlineSpotColor
+                    id="spot-naming-adjacent"
+                    varName="sideAdjacent"
+                    {...spotColorPropsFromDefinition(getVariableInfo("sideAdjacent"))}
+                >
+                    adjacent
+                </InlineSpotColor>
+                . Switch angles and those two swap over.
+            </EditableParagraph>
+        </Block>
+    </StackLayout>,
+
+    <StackLayout key="layout-naming-formula" maxWidth="xl">
+        <Block id="naming-formula" padding="lg">
+            <FormulaBlock
+                latex={
+                    "\\sin \\clr{ang}{\\theta} = \\dfrac{\\choice{answer_naming_sine_top}}{\\clr{hyp}{\\text{hypotenuse}}} " +
+                    "\\quad \\cos \\clr{ang}{\\theta} = \\dfrac{\\clr{adj}{\\text{adjacent}}}{\\clr{hyp}{\\text{hypotenuse}}} " +
+                    "\\quad \\tan \\clr{ang}{\\theta} = \\dfrac{\\clr{opp}{\\text{opposite}}}{\\clr{adj}{\\text{adjacent}}}"
+                }
+                colorMap={{ ang: "#8E90F5", hyp: HYPOTENUSE, adj: ADJACENT, opp: OPPOSITE_TEXT }}
+                clozeChoices={{
+                    answer_naming_sine_top: {
+                        correctAnswer: "opposite",
+                        options: ["opposite", "adjacent", "hypotenuse"],
+                        placeholder: "???",
+                        color: "#3AAEDB",
+                        bgColor: "rgba(98, 204, 249, 0.18)",
+                    },
+                }}
+            />
+        </Block>
+    </StackLayout>,
+
+    <StackLayout key="layout-naming-formula-note" maxWidth="xl">
+        <Block id="naming-formula-note" padding="sm">
+            <EditableParagraph id="para-naming-formula-note" blockId="naming-formula-note">
+                Two of the three ratios are already filled in, and no two of them use the same pair of
+                sides. Cosine has already claimed the amber adjacent over the violet hypotenuse, so the
+                gap above that hypotenuse has only one side left to be.
             </EditableParagraph>
         </Block>
     </StackLayout>,

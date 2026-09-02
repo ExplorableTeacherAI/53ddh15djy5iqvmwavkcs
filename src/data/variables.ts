@@ -82,6 +82,48 @@ export interface VariableDefinition {
  */
 export const variableDefinitions: Record<string, VariableDefinition> = {
     // ========================================
+    // SHARED COLOUR LANGUAGE (one quantity, one hue, everywhere)
+    // angle indigo, opposite teal, hypotenuse violet, adjacent amber,
+    // the student's own guess rose, and every answer box sky.
+    // ========================================
+
+    /** Colour identity for the angle we work from. */
+    angleTheta: {
+        defaultValue: 'angle',
+        type: 'text',
+        label: 'Angle colour',
+        description: 'Colour identity of the working angle, used by prose, formulas and figures',
+        color: '#8E90F5',
+    },
+
+    /** Colour identity for the side facing the angle. */
+    sideOpposite: {
+        defaultValue: 'opposite',
+        type: 'text',
+        label: 'Opposite side colour',
+        description: 'Colour identity of the opposite side, used by prose, formulas and figures',
+        color: '#3FA98A',
+    },
+
+    /** Colour identity for the side touching the angle. */
+    sideAdjacent: {
+        defaultValue: 'adjacent',
+        type: 'text',
+        label: 'Adjacent side colour',
+        description: 'Colour identity of the adjacent side, used by prose, formulas and figures',
+        color: '#D9922B',
+    },
+
+    /** Colour identity for the longest side. */
+    sideHypotenuse: {
+        defaultValue: 'hypotenuse',
+        type: 'text',
+        label: 'Hypotenuse colour',
+        description: 'Colour identity of the hypotenuse, used by prose, formulas and figures',
+        color: '#9575E8',
+    },
+
+    // ========================================
     // SECTION: The Ratio That Ignores Size
     // ========================================
 
@@ -95,7 +137,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         min: 10,
         max: 85,
         step: 1,
-        color: '#62D0AD',
+        color: '#8E90F5',
     },
 
     /** Shared highlight channel across both views: '' | 'height' | 'angle'. */
@@ -130,6 +172,31 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         step: 1,
     },
 
+    /** Derived: height divided by ladder length at the current lean. */
+    ladderRatio: {
+        defaultValue: 0.82,
+        type: 'number',
+        label: 'Height divided by ladder',
+        description: 'Read-only sine of the lean angle, written by the ladder figure',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        color: '#3FA98A',
+    },
+
+    /** Derived: how far up the wall the 6 m ladder reaches, in metres. */
+    ladderHeightMetres: {
+        defaultValue: 4.9,
+        type: 'number',
+        label: 'Height reached',
+        description: 'Read-only height the 6 m ladder reaches, written by the ladder figure',
+        unit: 'm',
+        min: 0,
+        max: 6,
+        step: 0.1,
+        color: '#3FA98A',
+    },
+
     // ========================================
     // SECTION: Solving for the Missing Side
     // ========================================
@@ -144,7 +211,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         min: 4,
         max: 12,
         step: 0.5,
-        color: '#8E90F5',
+        color: '#9575E8',
     },
 
     /** Angle between the ladder and the ground in the prediction figure. */
@@ -157,7 +224,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         min: 25,
         max: 80,
         step: 1,
-        color: '#62D0AD',
+        color: '#8E90F5',
     },
 
     /** Where the student has placed the prediction marker, in metres. */
@@ -170,7 +237,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         min: 0,
         max: 12.2,
         step: 0.1,
-        color: '#F7B23B',
+        color: '#E285B5',
     },
 
     /** 1 once the student has released the marker and the working is shown. */
@@ -182,6 +249,19 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         min: 0,
         max: 1,
         step: 1,
+    },
+
+    /** Derived: the height the ladder actually reaches, in metres. */
+    predictTrueHeight: {
+        defaultValue: 6.2,
+        type: 'number',
+        label: 'True height reached',
+        description: 'Read-only height worked out from the ladder length and its lean',
+        unit: 'm',
+        min: 0,
+        max: 12.2,
+        step: 0.1,
+        color: '#3FA98A',
     },
 
     /** Shared highlight channel: '' | 'height' | 'ladder' | 'angle'. */
@@ -202,7 +282,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         description: 'Student answer for the height reached by a 12 m ladder leaning at 65 degrees',
         placeholder: '???',
         correctAnswer: ['10.9', '10.9 m', '10.9m', '10.88'],
-        color: '#8E90F5',
+        color: '#3AAEDB',
     },
 
     /** Answer: which ratio pairs the adjacent side with the hypotenuse. */
@@ -214,7 +294,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         placeholder: '???',
         correctAnswer: 'cosine',
         options: ['sine', 'cosine', 'tangent'],
-        color: '#8E90F5',
+        color: '#3AAEDB',
     },
 
     // ========================================
@@ -280,7 +360,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         description: 'Student answer naming the hypotenuse when the right angle is at Q',
         placeholder: '???',
         correctAnswer: ['PR', 'RP'],
-        color: '#8E90F5',
+        color: '#3AAEDB',
     },
 
     /** Answer: naming side QR when working from angle P. */
@@ -292,7 +372,20 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         placeholder: '???',
         correctAnswer: 'opposite',
         options: ['opposite', 'adjacent', 'hypotenuse'],
-        color: '#8E90F5',
+        color: '#3AAEDB',
+    },
+
+    /** Answer inside the sine formula: which side sits on top of the fraction. */
+    answer_naming_sine_top: {
+        defaultValue: '',
+        type: 'select',
+        label: 'Top of the sine fraction',
+        description: 'Student answer choosing which side goes above the hypotenuse in the sine ratio',
+        placeholder: '???',
+        correctAnswer: 'opposite',
+        options: ['opposite', 'adjacent', 'hypotenuse'],
+        color: '#3AAEDB',
+        bgColor: 'rgba(98, 204, 249, 0.18)',
     },
 
     /** Answer: what the height-to-length ratio actually depends on. */
@@ -304,7 +397,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         placeholder: '???',
         correctAnswer: 'the lean angle',
         options: ['the lean angle', 'the ladder length', 'the wall height'],
-        color: '#8E90F5',
+        color: '#3AAEDB',
     },
 
     /** Answer: half-length ladder at the same angle reaches half the height. */
@@ -315,7 +408,7 @@ export const variableDefinitions: Record<string, VariableDefinition> = {
         description: 'Student answer for the shorter ladder at the same lean angle',
         placeholder: '???',
         correctAnswer: ['3.2', '3.2 m', '3.2m'],
-        color: '#8E90F5',
+        color: '#3AAEDB',
     },
 
     // Uncomment and modify these examples for your lesson:

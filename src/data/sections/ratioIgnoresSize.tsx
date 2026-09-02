@@ -9,10 +9,13 @@ import {
     InlineFeedback,
     InlineLinkedHighlight,
     InlineScrubbleNumber,
+    InlineSpotColor,
+    InlineTooltip,
+    InlineTrigger,
     InteractionHintSequence,
     RevealOnInteraction,
 } from "@/components/atoms";
-import { Figure, FigureSlider } from "@/components/molecules";
+import { Figure, FigureSlider, FormulaBlock } from "@/components/molecules";
 import { useVar, useSetVar } from "@/stores";
 import { clamp, remap, useSpring, type Vec2 } from "@/lib/motion";
 import {
@@ -21,6 +24,8 @@ import {
     getVariableInfo,
     linkedHighlightPropsFromDefinition,
     numberPropsFromDefinition,
+    scrubVarsFromDefinitions,
+    spotColorPropsFromDefinition,
 } from "../variables";
 
 // ── Shared view geometry — THE VISIBLE TIE ───────────────────────────────────
@@ -45,7 +50,13 @@ const MAX_ANGLE = 85;
 const INK = "#334155";
 const INK_STRUCTURE = "#64748B";
 const INK_QUIET = "#CBD5E1";
-const ACCENT = "#62D0AD";
+
+// One quantity, one hue — the same five colours run through every figure,
+// every formula and every coloured word in this lesson.
+const OPPOSITE = "#62D0AD";   // the height the ladder reaches
+const OPPOSITE_TEXT = "#3FA98A";
+const ANGLE = "#8E90F5";      // the lean
+const HYPOTENUSE = "#9575E8"; // the ladder itself
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
@@ -91,10 +102,10 @@ function SharedReadouts({ angle }: { angle: number }) {
     const ratio = Math.sin(toRadians(angle));
     return (
         <g fontSize="12" style={{ fontVariantNumeric: "tabular-nums", ...EASE_150 }}>
-            <text x="24" y="34" fill={INK} opacity={opacity("angle")}>
+            <text x="24" y="34" fill={ANGLE} opacity={opacity("angle")}>
                 {`lean = ${formatAngle(angle)}`}
             </text>
-            <text x={VIEW_WIDTH - 24} y="34" fill={ACCENT} textAnchor="end" opacity={opacity("height")}>
+            <text x={VIEW_WIDTH - 24} y="34" fill={OPPOSITE} textAnchor="end" opacity={opacity("height")}>
                 {`height ÷ ladder = ${formatRatio(ratio)}`}
             </text>
         </g>
@@ -128,6 +139,12 @@ function LadderDrawing() {
     const footX = WALL_X + Math.cos(radians) * SCALE_PX;
     const topY = GROUND_Y - Math.sin(radians) * SCALE_PX;
     const heightMetres = LADDER_METRES * Math.sin(radians);
+
+    // The two numbers the formula below reads back out of the store.
+    useEffect(() => {
+        setVar("ladderRatio", Math.round(Math.sin(radians) * 100) / 100);
+        setVar("ladderHeightMetres", Math.round(heightMetres * 10) / 10);
+    }, [radians, heightMetres, setVar]);
 
     const ghostRadians = toRadians(DEFAULT_ANGLE);
     const ghostFootX = WALL_X + Math.cos(ghostRadians) * SCALE_PX;
@@ -168,10 +185,10 @@ function LadderDrawing() {
                 is the span along the angle axis, carrying the same id. */}
             <g {...hoverProps("angle")} opacity={opacity("angle")} style={EASE_150}>
                 <Halo active={isActive("angle")}>
-                    <path d={arcPath} fill="none" stroke={INK_STRUCTURE} strokeWidth={weight("angle", 2) + 6} strokeLinecap="round" />
+                    <path d={arcPath} fill="none" stroke={ANGLE} strokeWidth={weight("angle", 2.5) + 6} strokeLinecap="round" />
                 </Halo>
-                <path d={arcPath} fill="none" stroke={INK_STRUCTURE} strokeWidth={weight("angle", 2)} strokeLinecap="round" />
-                <text x={footX - 40} y={GROUND_Y - 12} fill={INK} fontSize="12" textAnchor="middle">
+                <path d={arcPath} fill="none" stroke={ANGLE} strokeWidth={weight("angle", 2.5)} strokeLinecap="round" />
+                <text x={footX - 40} y={GROUND_Y - 12} fill={ANGLE} fontSize="12" textAnchor="middle">
                     lean
                 </text>
             </g>
@@ -182,8 +199,8 @@ function LadderDrawing() {
                 y1={topY}
                 x2={footX}
                 y2={GROUND_Y}
-                stroke={INK_STRUCTURE}
-                strokeWidth="2.5"
+                stroke={HYPOTENUSE}
+                strokeWidth="3"
                 strokeLinecap="round"
                 opacity={opacity("__structure")}
                 style={EASE_150}
@@ -193,17 +210,17 @@ function LadderDrawing() {
                 pixel length equals the teal bar in the graph, exactly. */}
             <g {...hoverProps("height")} opacity={opacity("height")} style={EASE_150}>
                 <Halo active={isActive("height")}>
-                    <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={ACCENT} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
+                    <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={OPPOSITE} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
                 </Halo>
-                <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={ACCENT} strokeWidth={weight("height", 3)} strokeLinecap="round" />
-                <text x={WALL_X - 10} y={(GROUND_Y + topY) / 2 + 4} fill={ACCENT} fontSize="12" textAnchor="end">
+                <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={OPPOSITE} strokeWidth={weight("height", 3)} strokeLinecap="round" />
+                <text x={WALL_X - 10} y={(GROUND_Y + topY) / 2 + 4} fill={OPPOSITE} fontSize="12" textAnchor="end">
                     height
                 </text>
             </g>
 
             {/* Draggable foot — the only handle in this view. */}
             <g transform={`translate(${footX} ${GROUND_Y}) scale(${handleScale})`}>
-                <circle r="8" fill={ACCENT} filter="url(#ratio-ladder-shadow)" />
+                <circle r="8" fill={OPPOSITE} filter="url(#ratio-ladder-shadow)" />
             </g>
             <circle
                 cx={footX}
@@ -230,10 +247,10 @@ function LadderDrawing() {
             />
 
             <g fontSize="12" style={{ fontVariantNumeric: "tabular-nums" }}>
-                <text x="24" y={GROUND_Y + 30} fill={ACCENT} opacity={opacity("height")}>
+                <text x="24" y={GROUND_Y + 30} fill={OPPOSITE} opacity={opacity("height")}>
                     {`height = ${formatMetres(heightMetres)}`}
                 </text>
-                <text x={VIEW_WIDTH - 24} y={GROUND_Y + 30} fill={INK} textAnchor="end">
+                <text x={VIEW_WIDTH - 24} y={GROUND_Y + 30} fill={HYPOTENUSE} textAnchor="end">
                     {`ladder = ${formatMetres(LADDER_METRES)}`}
                 </text>
             </g>
@@ -319,24 +336,24 @@ function RatioGraphDrawing() {
             {/* ANGLE group — counterpart of the arc at the ladder's foot. */}
             <g {...hoverProps("angle")} opacity={opacity("angle")} style={EASE_150}>
                 <Halo active={isActive("angle")}>
-                    <line x1={PLOT_LEFT} y1={GROUND_Y} x2={markerX} y2={GROUND_Y} stroke={INK_STRUCTURE} strokeWidth={weight("angle", 2) + 6} strokeLinecap="round" />
+                    <line x1={PLOT_LEFT} y1={GROUND_Y} x2={markerX} y2={GROUND_Y} stroke={ANGLE} strokeWidth={weight("angle", 2.5) + 6} strokeLinecap="round" />
                 </Halo>
-                <line x1={PLOT_LEFT} y1={GROUND_Y} x2={markerX} y2={GROUND_Y} stroke={INK_STRUCTURE} strokeWidth={weight("angle", 2)} strokeLinecap="round" />
+                <line x1={PLOT_LEFT} y1={GROUND_Y} x2={markerX} y2={GROUND_Y} stroke={ANGLE} strokeWidth={weight("angle", 2.5)} strokeLinecap="round" />
             </g>
 
             {/* HEIGHT group — the trail already walked, and the bar whose pixel
                 height matches the ladder's teal height exactly. */}
             <g {...hoverProps("height")} opacity={opacity("height")} style={EASE_150}>
-                <path d={pathBetween(traceMin, traceMax)} fill="none" stroke={ACCENT} strokeWidth={weight("height", 2.5)} strokeLinecap="round" strokeLinejoin="round" />
+                <path d={pathBetween(traceMin, traceMax)} fill="none" stroke={OPPOSITE} strokeWidth={weight("height", 2.5)} strokeLinecap="round" strokeLinejoin="round" />
                 <Halo active={isActive("height")}>
-                    <line x1={markerX} y1={GROUND_Y} x2={markerX} y2={markerY} stroke={ACCENT} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
+                    <line x1={markerX} y1={GROUND_Y} x2={markerX} y2={markerY} stroke={OPPOSITE} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
                 </Halo>
-                <line x1={markerX} y1={GROUND_Y} x2={markerX} y2={markerY} stroke={ACCENT} strokeWidth={weight("height", 3)} strokeLinecap="round" />
-                <line x1={PLOT_LEFT} y1={markerY} x2={markerX} y2={markerY} stroke={ACCENT} strokeWidth="1.5" strokeDasharray="3 4" opacity={0.6} />
+                <line x1={markerX} y1={GROUND_Y} x2={markerX} y2={markerY} stroke={OPPOSITE} strokeWidth={weight("height", 3)} strokeLinecap="round" />
+                <line x1={PLOT_LEFT} y1={markerY} x2={markerX} y2={markerY} stroke={OPPOSITE} strokeWidth="1.5" strokeDasharray="3 4" opacity={0.6} />
             </g>
 
             <g transform={`translate(${markerX} ${markerY}) scale(${handleScale})`}>
-                <circle r="8" fill={ACCENT} filter="url(#ratio-graph-shadow)" />
+                <circle r="8" fill={OPPOSITE} filter="url(#ratio-graph-shadow)" />
             </g>
             <circle
                 cx={markerX}
@@ -430,6 +447,36 @@ function RatioGraphFigure() {
     );
 }
 
+// ── The sine formula, wired to the same variables as the figures ─────────────
+
+const RATIO_FORMULA_VARIABLES = {
+    ladderAngle: {
+        ...scrubVarsFromDefinitions(["ladderAngle"]).ladderAngle,
+        formatValue: (value: number) => `${Math.round(value)}^\\circ`,
+    },
+    ladderHeightMetres: {
+        color: OPPOSITE_TEXT,
+        formatValue: (value: number) => value.toFixed(1),
+    },
+    ladderRatio: {
+        color: OPPOSITE_TEXT,
+        formatValue: (value: number) => value.toFixed(2),
+    },
+};
+
+const RATIO_FORMULA_HIGHLIGHTS = {
+    height: {
+        varName: "ladderViewHighlight",
+        color: OPPOSITE_TEXT,
+        bgColor: "rgba(98, 208, 173, 0.22)",
+    },
+    angle: {
+        varName: "ladderViewHighlight",
+        color: ANGLE,
+        bgColor: "rgba(142, 144, 245, 0.22)",
+    },
+};
+
 // ── Blocks ───────────────────────────────────────────────────────────────────
 
 export const ratioIgnoresSizeBlocks: ReactElement[] = [
@@ -477,9 +524,59 @@ export const ratioIgnoresSizeBlocks: ReactElement[] = [
     <StackLayout key="layout-ratio-naming" maxWidth="xl">
         <Block id="ratio-naming" padding="sm">
             <EditableParagraph id="para-ratio-naming" blockId="ratio-naming">
-                Every lean owns one ratio, and that curve is the record of all of them. The side
-                opposite the angle divided by the hypotenuse is called the sine of that angle, which
-                is exactly the number the sin button hands you.
+                Every lean owns one ratio, and that curve is the record of all of them. The teal height{" "}
+                <InlineSpotColor
+                    id="spot-ratio-height"
+                    varName="sideOpposite"
+                    {...spotColorPropsFromDefinition(getVariableInfo("sideOpposite"))}
+                >
+                    h
+                </InlineSpotColor>
+                , divided by the violet ladder length{" "}
+                <InlineSpotColor
+                    id="spot-ratio-ladder"
+                    varName="sideHypotenuse"
+                    {...spotColorPropsFromDefinition(getVariableInfo("sideHypotenuse"))}
+                >
+                    L
+                </InlineSpotColor>
+                , is the{" "}
+                <InlineTooltip
+                    id="tooltip-ratio-sine"
+                    tooltip="The sine of an angle: the side facing that angle divided by the hypotenuse, the longest side of the right triangle."
+                >
+                    sine
+                </InlineTooltip>{" "}
+                of that lean, exactly the number the sin button hands you. At a{" "}
+                <InlineTrigger id="trigger-ratio-thirty" varName="ladderAngle" value={30}>
+                    lean of 30°
+                </InlineTrigger>{" "}
+                the ratio is exactly one half.
+            </EditableParagraph>
+        </Block>
+    </StackLayout>,
+
+    <StackLayout key="layout-ratio-formula" maxWidth="xl">
+        <Block id="ratio-formula" padding="lg">
+            <FormulaBlock
+                latex={
+                    "\\sin \\scrub{ladderAngle} \\;=\\; " +
+                    "\\dfrac{\\highlight{height}{\\mathrm h}}{\\clr{hyp}{\\mathrm L}} " +
+                    "\\;=\\; \\dfrac{\\val{ladderHeightMetres}\\,\\text{m}}{\\clr{hyp}{6\\,\\text{m}}} " +
+                    "\\;=\\; \\val{ladderRatio}"
+                }
+                colorMap={{ hyp: HYPOTENUSE }}
+                variables={RATIO_FORMULA_VARIABLES}
+                linkedHighlights={RATIO_FORMULA_HIGHLIGHTS}
+            />
+        </Block>
+    </StackLayout>,
+
+    <StackLayout key="layout-ratio-formula-note" maxWidth="xl">
+        <Block id="ratio-formula-note" padding="sm">
+            <EditableParagraph id="para-ratio-formula-note" blockId="ratio-formula-note">
+                The indigo angle in that equation is draggable, and the ladder above it leans to match.
+                Hovering the teal h lights up the line it stands for in the drawing.
             </EditableParagraph>
         </Block>
     </StackLayout>,

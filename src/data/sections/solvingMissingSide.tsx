@@ -9,10 +9,13 @@ import {
     InlineFeedback,
     InlineLinkedHighlight,
     InlineScrubbleNumber,
+    InlineSpotColor,
+    InlineTooltip,
+    InlineTrigger,
     InteractionHintSequence,
     RevealOnInteraction,
 } from "@/components/atoms";
-import { Figure, FigureSlider } from "@/components/molecules";
+import { Figure, FigureSlider, FormulaBlock } from "@/components/molecules";
 import { useVar, useSetVar } from "@/stores";
 import { clamp, useSpring, type Vec2 } from "@/lib/motion";
 import {
@@ -21,6 +24,8 @@ import {
     getVariableInfo,
     linkedHighlightPropsFromDefinition,
     numberPropsFromDefinition,
+    scrubVarsFromDefinitions,
+    spotColorPropsFromDefinition,
 } from "../variables";
 
 // ── View geometry ────────────────────────────────────────────────────────────
@@ -32,11 +37,16 @@ const WALL_X = 170;
 const PX_PER_METRE = 19;
 const WALL_TOP_METRES = 12.2;
 
-const INK = "#334155";
 const INK_STRUCTURE = "#64748B";
 const INK_QUIET = "#CBD5E1";
-const ACCENT = "#62D0AD";
-const GUESS = "#F7B23B";
+
+// The lesson's shared colour language, again: teal height, indigo angle,
+// violet ladder, and rose for the student's own prediction.
+const OPPOSITE = "#62D0AD";
+const OPPOSITE_TEXT = "#3FA98A";
+const ANGLE = "#8E90F5";
+const HYPOTENUSE = "#9575E8";
+const GUESS = "#E285B5";
 
 const EASE_150 = { transition: "opacity 150ms ease, stroke-width 150ms ease" } as const;
 
@@ -99,6 +109,11 @@ function PredictLadderDrawing() {
 
     const radians = toRadians(angle);
     const trueHeight = length * Math.sin(radians);
+
+    // The number the working formula reads back out of the store.
+    useEffect(() => {
+        setVar("predictTrueHeight", Math.round(trueHeight * 10) / 10);
+    }, [trueHeight, setVar]);
     const footX = WALL_X + Math.cos(radians) * length * PX_PER_METRE;
     const topY = yForMetres(trueHeight);
     const guessY = yForMetres(guess);
@@ -141,10 +156,10 @@ function PredictLadderDrawing() {
 
             {/* The two numbers the question gives you. */}
             <g fontSize="12" style={{ fontVariantNumeric: "tabular-nums", ...EASE_150 }}>
-                <text x="24" y="32" fill={INK} opacity={opacity("ladder")}>
+                <text x="24" y="32" fill={HYPOTENUSE} opacity={opacity("ladder")}>
                     {`ladder = ${formatMetres(length)}`}
                 </text>
-                <text x={VIEW_WIDTH - 24} y="32" fill={INK} textAnchor="end" opacity={opacity("angle")}>
+                <text x={VIEW_WIDTH - 24} y="32" fill={ANGLE} textAnchor="end" opacity={opacity("angle")}>
                     {`lean = ${formatAngle(angle)}`}
                 </text>
             </g>
@@ -164,8 +179,8 @@ function PredictLadderDrawing() {
                         y1={GROUND_Y}
                         x2={locked ? WALL_X : stubX}
                         y2={locked ? topY : stubY}
-                        stroke={INK_STRUCTURE}
-                        strokeWidth={weight("ladder", 2.5) + 6}
+                        stroke={HYPOTENUSE}
+                        strokeWidth={weight("ladder", 3) + 6}
                         strokeLinecap="round"
                     />
                 </Halo>
@@ -174,8 +189,8 @@ function PredictLadderDrawing() {
                     y1={GROUND_Y}
                     x2={locked ? WALL_X : stubX}
                     y2={locked ? topY : stubY}
-                    stroke={INK_STRUCTURE}
-                    strokeWidth={weight("ladder", 2.5)}
+                    stroke={HYPOTENUSE}
+                    strokeWidth={weight("ladder", 3)}
                     strokeLinecap="round"
                 />
                 {!locked && (
@@ -186,9 +201,9 @@ function PredictLadderDrawing() {
             {/* ANGLE group — the arc at the foot. */}
             <g {...hoverProps("angle")} opacity={opacity("angle")} style={EASE_150}>
                 <Halo active={isActive("angle")}>
-                    <path d={arcPath} fill="none" stroke={INK_STRUCTURE} strokeWidth={weight("angle", 2) + 6} strokeLinecap="round" />
+                    <path d={arcPath} fill="none" stroke={ANGLE} strokeWidth={weight("angle", 2.5) + 6} strokeLinecap="round" />
                 </Halo>
-                <path d={arcPath} fill="none" stroke={INK_STRUCTURE} strokeWidth={weight("angle", 2)} strokeLinecap="round" />
+                <path d={arcPath} fill="none" stroke={ANGLE} strokeWidth={weight("angle", 2.5)} strokeLinecap="round" />
             </g>
 
             {/* HEIGHT group — revealed only once the prediction is committed,
@@ -196,11 +211,11 @@ function PredictLadderDrawing() {
             {locked === 1 && (
                 <g {...hoverProps("height")} opacity={opacity("height")} style={EASE_150}>
                     <Halo active={isActive("height")}>
-                        <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={ACCENT} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
+                        <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={OPPOSITE} strokeWidth={weight("height", 3) + 6} strokeLinecap="round" />
                     </Halo>
-                    <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={ACCENT} strokeWidth={weight("height", 3)} strokeLinecap="round" />
-                    <line x1={WALL_X} y1={topY} x2={WALL_X + 74} y2={topY} stroke={ACCENT} strokeWidth="1.5" strokeDasharray="3 4" opacity={0.6} />
-                    <text x={WALL_X + 12} y={topY - 8} fill={ACCENT} fontSize="12" style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <line x1={WALL_X} y1={GROUND_Y} x2={WALL_X} y2={topY} stroke={OPPOSITE} strokeWidth={weight("height", 3)} strokeLinecap="round" />
+                    <line x1={WALL_X} y1={topY} x2={WALL_X + 74} y2={topY} stroke={OPPOSITE} strokeWidth="1.5" strokeDasharray="3 4" opacity={0.6} />
+                    <text x={WALL_X + 12} y={topY - 8} fill={OPPOSITE} fontSize="12" style={{ fontVariantNumeric: "tabular-nums" }}>
                         {`reaches ${formatMetres(trueHeight)}`}
                     </text>
                 </g>
@@ -324,6 +339,52 @@ function PredictLadderFigure() {
     );
 }
 
+// ── The working, as a live formula ───────────────────────────────────────────
+
+const PREDICT_FORMULA_VARIABLES = {
+    predictLadderLength: {
+        ...scrubVarsFromDefinitions(["predictLadderLength"]).predictLadderLength,
+        formatValue: (value: number) => value.toFixed(1),
+    },
+    predictLeanAngle: {
+        ...scrubVarsFromDefinitions(["predictLeanAngle"]).predictLeanAngle,
+        formatValue: (value: number) => `${Math.round(value)}^\\circ`,
+    },
+    predictTrueHeight: {
+        color: OPPOSITE_TEXT,
+        formatValue: (value: number) => value.toFixed(1),
+    },
+};
+
+const PREDICT_FORMULA_HIGHLIGHTS = {
+    height: {
+        varName: "predictHighlight",
+        color: OPPOSITE_TEXT,
+        bgColor: "rgba(98, 208, 173, 0.22)",
+    },
+    ladder: {
+        varName: "predictHighlight",
+        color: HYPOTENUSE,
+        bgColor: "rgba(149, 117, 232, 0.20)",
+    },
+};
+
+/** The answer only joins the equation once the prediction has been committed. */
+function PredictWorkingFormula() {
+    const locked = useVar<number>("predictLocked", 0);
+    const latex =
+        "\\highlight{height}{\\mathrm h} \\;=\\; \\scrub{predictLadderLength}\\,\\text{m} " +
+        "\\times \\sin \\scrub{predictLeanAngle}" +
+        (locked === 1 ? " \\;=\\; \\val{predictTrueHeight}\\,\\text{m}" : "");
+    return (
+        <FormulaBlock
+            latex={latex}
+            variables={PREDICT_FORMULA_VARIABLES}
+            linkedHighlights={PREDICT_FORMULA_HIGHLIGHTS}
+        />
+    );
+}
+
 // ── Blocks ───────────────────────────────────────────────────────────────────
 
 export const solvingMissingSideBlocks: ReactElement[] = [
@@ -340,7 +401,13 @@ export const solvingMissingSideBlocks: ReactElement[] = [
             <EditableParagraph id="para-solving-setup" blockId="solving-setup">
                 Now for the payoff. The pair of sides in the question picks the ratio for you, and one
                 of that pair is the unknown, which leaves a single letter to solve for. Before any
-                working shows up, drag the marker up the wall to where you think a ladder leaning at{" "}
+                working shows up, drag the rose marker up the wall to where you think a{" "}
+                <InlineScrubbleNumber
+                    varName="predictLadderLength"
+                    {...numberPropsFromDefinition(getVariableInfo("predictLadderLength"))}
+                    formatValue={formatMetres}
+                />{" "}
+                ladder leaning at{" "}
                 <InlineScrubbleNumber
                     varName="predictLeanAngle"
                     {...numberPropsFromDefinition(getVariableInfo("predictLeanAngle"))}
@@ -360,25 +427,63 @@ export const solvingMissingSideBlocks: ReactElement[] = [
     <StackLayout key="layout-solving-rule" maxWidth="xl">
         <Block id="solving-rule" padding="sm">
             <EditableParagraph id="para-solving-rule" blockId="solving-rule">
-                Let go and the working appears: the ladder's length multiplied by the sine of its lean
-                gives the{" "}
+                Let go and the working appears: the violet{" "}
+                <InlineLinkedHighlight
+                    varName="predictHighlight"
+                    highlightId="ladder"
+                    color={HYPOTENUSE}
+                    bgColor="rgba(149, 117, 232, 0.20)"
+                >
+                    ladder
+                </InlineLinkedHighlight>{" "}
+                multiplied by the sine of its indigo{" "}
+                <InlineLinkedHighlight
+                    varName="predictHighlight"
+                    highlightId="angle"
+                    color={ANGLE}
+                    bgColor="rgba(142, 144, 245, 0.22)"
+                >
+                    lean
+                </InlineLinkedHighlight>{" "}
+                gives the teal{" "}
                 <InlineLinkedHighlight
                     varName="predictHighlight"
                     highlightId="height"
                     {...linkedHighlightPropsFromDefinition(getVariableInfo("predictHighlight"))}
                 >
-                    height it reaches
+                    height h it reaches
                 </InlineLinkedHighlight>
                 . Opposite and hypotenuse means sine, every time.
             </EditableParagraph>
         </Block>
     </StackLayout>,
 
+    <StackLayout key="layout-solving-formula" maxWidth="xl">
+        <Block id="solving-formula" padding="lg">
+            <PredictWorkingFormula />
+        </Block>
+    </StackLayout>,
+
     <StackLayout key="layout-solving-worked" maxWidth="xl">
         <Block id="solving-worked" padding="sm">
             <EditableParagraph id="para-solving-worked" blockId="solving-worked">
-                Back to the window cleaner, then: a 6 m ladder at 75° gives a height of 6 × sin 75°,
-                which comes to 5.8 m. The pavement never had to be measured at all.
+                Back to the window cleaner, then: the{" "}
+                <InlineTrigger id="trigger-solving-cleaner-ladder" varName="predictLadderLength" value={6}>
+                    cleaner{"\u2019"}s 6 m ladder
+                </InlineTrigger>{" "}
+                at its{" "}
+                <InlineTrigger id="trigger-solving-safety-lean" varName="predictLeanAngle" value={75}>
+                    75° safety lean
+                </InlineTrigger>{" "}
+                reaches 6 × sin 75°, which comes to 5.8 m. The pavement never had to be measured, and the{" "}
+                <InlineSpotColor
+                    id="spot-solving-hypotenuse"
+                    varName="sideHypotenuse"
+                    {...spotColorPropsFromDefinition(getVariableInfo("sideHypotenuse"))}
+                >
+                    hypotenuse
+                </InlineSpotColor>{" "}
+                did all the work.
             </EditableParagraph>
         </Block>
     </StackLayout>,
@@ -432,8 +537,14 @@ export const solvingMissingSideBlocks: ReactElement[] = [
         <Block id="solving-question-ratio" padding="md">
             <EditableParagraph id="para-solving-question-ratio" blockId="solving-question-ratio">
                 A different job: a ladder leans at 70° with its foot 1.5 m out from the wall, and this
-                time the ladder's own length is the unknown. That pairs the adjacent side with the
-                hypotenuse, so the ratio to reach for is{" "}
+                time the ladder's own length is the unknown. That pairs the{" "}
+                <InlineTooltip
+                    id="tooltip-solving-adjacent"
+                    tooltip="The adjacent side is the leg that touches the angle you are working from, running from that corner to the right angle."
+                >
+                    adjacent side
+                </InlineTooltip>{" "}
+                with the hypotenuse, so the ratio to reach for is{" "}
                 <InlineFeedback
                     varName="answer_solving_ratio"
                     correctValue="cosine"
